@@ -1,0 +1,26 @@
+# CanchaMania - Dependencias del backend
+# Python 3.13
+#
+# Instalacion:
+#   python -m venv .venv
+#   .venv\Scripts\pip install -r requirements.txt
+
+# Framework
+Django>=5.2,<5.3
+
+# API REST
+djangorestframework>=3.15,<4.0
+
+# Driver PostgreSQL
+psycopg2-binary>=2.9,<3.0
+
+# Lectura de .env
+python-dotenv>=1.0,<2.0
+
+# Servir el frontend compilado (dist/) en produccion
+whitenoise>=6.6,<7.0
+
+# Tests
+pytest>=8.0
+pytest-django>=4.8
+factory-boy>=3.3
