@@ -7,9 +7,9 @@ Este README documenta cómo se levanta el proyecto y qué incluye la Etapa 1.
 
 ---
 
-## Estado actual: Etapa 1 (backend)
+## Estado actual: Etapa 1 (backend + frontend)
 
-Está implementado **solo el backend** del Stage 1. **No hay frontend todavía.**
+La Etapa 1 está completa: backend **y** frontend.
 
 Alcance entregado:
 
@@ -18,6 +18,9 @@ Alcance entregado:
 - Multi-tenancy: todo acceso se recorta al ámbito del usuario y sus membresías activas.
 - Permisos por rol (`DUENO`, `ENCARGADO`, `CAJERO`) sobre los *model permissions* de Django.
 - API de negocios (solo lectura), sucursales, usuarios y membresías.
+- Frontend Vue 3 + Vite + Pinia: login, panel, guardas de ruta por sesión y por
+  permiso, y el esqueleto de navegación. Las pantallas de gestión de negocios,
+  sucursales, usuarios y membresías entran con la etapa que las use.
 
 No implementado todavía, a propósito: reservas, pagos, Mercado Pago, canchas,
 canchas/franjas, clientes, ventas, caja, reportes y configuración. Esos módulos
@@ -29,7 +32,7 @@ entran en las etapas siguientes del SPEC §23.
 
 - Python 3.13
 - PostgreSQL 17 (o superior)
-- Node 22+ (solo cuando exista el frontend)
+- Node 22+ (para el frontend)
 
 ---
 
@@ -82,13 +85,43 @@ En la Etapa 1 los negocios se dan de alta por comando de administración
 Sin `--contrasena` la clave se pide de forma interactiva, para que no quede en el
 historial del shell. `crear_negocio --help` lista el resto de las opciones.
 
-### 5. Levantar
+### 5. Entorno de Node
 
 ```bash
-.venv\Scripts\python backend\manage.py runserver
+cd frontend
+npm install
 ```
 
+### 6. Levantar en desarrollo
+
+Dos procesos: Django con la API y Vite con la SPA.
+
+```bash
+# Terminal 1
+.venv\Scripts\python backend\manage.py runserver
+
+# Terminal 2
+cd frontend
+npm run dev
+```
+
+Vite sirve la SPA en `http://localhost:5173` y hace de proxy de `/api` hacia
+Django. El proxy usa `changeOrigin: false` a propósito: si falsea el `Host`,
+Django rechaza el CSRF por no cuadrar `Referer` con `Host`.
+
 El panel administrativo global (Superadmin) queda en `/admin/`.
+
+### 7. Build de producción
+
+```bash
+cd frontend
+npm run build
+```
+
+El build queda en `frontend/dist/` (no se versiona). En producción Django sirve
+ese build con WhiteNoise y todo —SPA y API— bajo el mismo dominio, sin CORS.
+Las rutas profundas (`/login`, `/panel`, ...) las resuelve el catch-all de
+`config/urls.py` renderizando el `index.html` del build.
 
 ---
 
@@ -102,8 +135,15 @@ El panel administrativo global (Superadmin) queda en `/admin/`.
 | `python backend\manage.py runserver` | Servidor de desarrollo. |
 | `python backend\manage.py test` | No usar: la suite corre con pytest. |
 | `python backend\manage.py crear_negocio --help` | Alta de negocio con su Dueño. |
+| `cd frontend && npm run dev` | Servidor de Vite con proxy a la API. |
+| `cd frontend && npm run build` | Build de producción en `frontend/dist/`. |
+| `cd frontend && npm run lint` | ESLint (flat config + eslint-plugin-vue). |
+| `cd frontend && npm test` | Vitest: cliente HTTP, store, guardas e integración. |
+| `cd frontend && npm run verificar` | `test` + `lint` + `build` en un comando. |
 
 ## Tests
+
+### Backend
 
 Los tests corren contra **PostgreSQL**, nunca contra SQLite: Django crea y borra
 la base `DATABASE_TEST_NAME` (por defecto `test_canchamania`) en cada sesión.
@@ -111,6 +151,17 @@ la base `DATABASE_TEST_NAME` (por defecto `test_canchamania`) en cada sesión.
 ```bash
 cd backend
 ..\.venv\Scripts\python -m pytest -q
+```
+
+### Frontend
+
+Vitest en jsdom. No necesita base de datos: el backend se sustituye por stubs de
+`fetch` que replican la rotación de CSRF, el `SIN_AMBITO` y la validación de
+credenciales.
+
+```bash
+cd frontend
+npm test
 ```
 
 ---
@@ -132,7 +183,23 @@ CanchaMania/
 │       ├── cuentas/         Usuario, Membresia, sesión, roles
 │       ├── negocios/        Negocio
 │       └── sucursales/      Sucursal
-└── frontend/                (Etapa 2)
+└── frontend/
+    ├── index.html
+    ├── vite.config.js       Proxy de /api (changeOrigin: false)
+    ├── eslint.config.js
+    ├── package.json
+    └── src/
+        ├── api/             cliente HTTP, constantes, endpoints de sesión
+        ├── assets/          CSS de Tailwind
+        ├── components/ui/   Componentes de interfaz sin lógica de negocio
+        ├── composables/
+        ├── config/          Secciones del panel
+        ├── layouts/         PanelLayout, PublicoLayout
+        ├── modules/
+        │   ├── auth/        Login
+        │   └── panel/       Inicio, Acceso, SinPermiso, NoEncontrado
+        ├── router/          rutas, guardas y su test
+        └── stores/          Pinia: sesión y permisos
 ```
 
 `apps/core` concentra lo transversal: `TenantScopedModel` resuelve la condición
@@ -143,6 +210,13 @@ que ningún endpoint olvide el recorte ni el permiso.
 La regla de oro: **el backend es la autoridad del permiso y del ámbito**. El
 frontend usa la lista de permisos que devuelve `/api/auth/me/` solo para ocultar
 pantallas.
+
+En el frontend la misma regla se traduce en tres invariantes:
+
+- `src/api/client.js` es el **único** cliente HTTP. Ningún componente lo bypasea.
+- Las vistas nunca llaman a la API: leen del store de Pinia.
+- El token CSRF se toma de la cookie `csrftoken`, que es la fuente de verdad,
+  porque Django rota el secreto en `login()` y `logout()`.
 
 ---
 
@@ -222,3 +296,16 @@ es 403 — la misma que se recibiría con un recurso propio, así que tampoco fi
   serializer, porque su consecuencia correcta es un 409 y no un 400 de formulario.
 - **Rol `DUENO`**: solo un Dueño puede asignarlo, porque amplía el alcance a todo
   el negocio y sería un autoescalamiento de privilegios.
+- **Alta de origen (`crear_dueno_de_origen`)**: el primer Dueño no puede tener
+  ámbito porque no hay ningún Dueño que se lo dé. En vez de destrabar
+  `crear_membresia` —eso sí sería abrir una puerta general— hay una función
+  aparte y estrecha: el rol es siempre `DUENO` sobre todo el negocio, el usuario
+  no puede tener ninguna membresía previa (activa o inactiva) y el negocio no
+  puede tener ninguna membresía activa. Ninguna vista ni serializer la llama.
+- **Módulos del frontend**: además de los módulos del SPEC §21, hay
+  `modules/auth/` (login) y `modules/panel/` (inicio, acceso, sin permiso, no
+  encontrado). Es una desviación menor de la lista de carpetas: el login y las
+  pantallas de acceso pertenecen al panel y no tienen módulo propio en el SPEC.
+- **Módulos bloqueados en el panel**: los que tienen permisos declarados pero
+  todavía no se implementan se dibujan como "Pronto", sin enlazar a rutas
+  inexistentes.

@@ -377,6 +377,71 @@ def crear_membresia(*, usuario, rol, usuario_creador=None, **alcance):
     return membresia
 
 
+@transaction.atomic
+def crear_dueno_de_origen(*, usuario, negocio):
+    """Alta de origen: el Dueño del primer negocio, que aun no tiene a nadie.
+
+    Es la UNICA via para dar membresia a alguien que todavia no tiene ninguna, y
+    existe solo para el arranque del sistema (el comando `crear_negocio`), donde
+    la chicken-and-egg es real: el primer Dueno no puede tener ambito porque no
+    hay ningun Dueno que se lo pueda dar. `crear_membresia` resuelve el ambito
+    contra quien opera, asi que en el arranque no hay contra quien resolverlo.
+
+    No la llama ninguna vista ni serializer: la API nunca la alcanza. Es una via
+    de consola, no una puerta trasera de la API.
+
+    Garantias, y por eso no es un atajo para ampliar permisos:
+
+    * el rol es SIEMPRE `DUENO` sobre todo el negocio, sin opcion a parametrizar;
+    * el usuario no puede tener NINGUNA membresia previa (activa o no), asi que
+      no sirve para colar permisos extra a alguien que ya accede al sistema;
+    * el negocio no puede tener ninguna membresia activa, asi que no sirve para
+      colar un segundo Dueno al lado del Dueno real.
+
+    Todo lo demas sigue igual que en `crear_membresia`: `full_clean()` ejecuta
+    `clean()` y las constraints, y la `IntegrityError` de PostgreSQL es el
+    backstop final contra carreras.
+    """
+    from apps.cuentas.models import Membresia  # import local: evita ciclo de modulo
+
+    if Membresia.objects.filter(usuario_id=usuario.pk).exists():
+        raise ConflictoError(
+            "El usuario ya tiene membresias:Amplie sus permisos desde el panel.",
+            codigo="MEMBRESIA_DUPLICADA",
+        )
+
+    if Membresia.objects.filter(negocio_id=negocio.pk, activa=True).exists():
+        raise ConflictoError(
+            "El negocio ya tiene membresias: Amplie sus permisos desde el panel.",
+            codigo="MEMBRESIA_DUPLICADA",
+        )
+
+    membresia = Membresia(
+        usuario=usuario,
+        negocio_id=negocio.pk,
+        sucursal_id=None,
+        rol=Rol.DUENO,
+        activa=True,
+    )
+    try:
+        # Mismo motivo que en `crear_membresia`: `full_clean()` corre `clean()`
+        # (rol <-> sucursal) y `validate_constraints()`.
+        membresia.full_clean()
+        membresia.save()
+    except IntegrityError as exc:
+        # Backstop contra carreras: las constraints de PostgreSQL son la verdad.
+        raise ConflictoError(
+            "El negocio ya tiene un Dueno.", codigo="MEMBRESIA_DUPLICADA"
+        ) from exc
+
+    registrar_accion(
+        actor=usuario,
+        accion="DUENO_ORIGEN_CREADO",
+        detalle=f"usuario_id={usuario.pk} negocio_id={negocio.pk}",
+    )
+    return membresia
+
+
 def desactivar_membresia(membresia, usuario_operador):
     """Da de baja una membresia. No se borra: queda el rastro (SPEC §17)."""
     from apps.cuentas.models import Membresia

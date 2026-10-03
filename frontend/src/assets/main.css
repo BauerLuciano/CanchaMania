@@ -1,0 +1,40 @@
+@import 'tailwindcss';
+
+/*
+ * Paleta y tokens del panel.
+ * Tailwind v4 se configura desde el CSS: lo que se declara en `@theme` pasa a
+ * existir como utilidades (bg-cancha-600, text-cancha-700, etc.).
+ */
+@theme {
+  /* Verde cancha: acento principal de la marca. */
+  --color-cancha-50: #ecfdf5;
+  --color-cancha-100: #d1fae5;
+  --color-cancha-200: #a7f3d0;
+  --color-cancha-300: #6ee7b7;
+  --color-cancha-400: #34d399;
+  --color-cancha-500: #10b981;
+  --color-cancha-600: #059669;
+  --color-cancha-700: #047857;
+  --color-cancha-800: #065f46;
+  --color-cancha-900: #064e3b;
+  --color-cancha-950: #022c22;
+
+  --font-sans:
+    'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    @apply bg-slate-100 text-slate-900 antialiased;
+    font-family: var(--font-sans);
+  }
+
+  /* Foco visible y consistente para navegación por teclado. */
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-cancha-600;
+  }
+}

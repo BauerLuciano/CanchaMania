@@ -19,7 +19,7 @@ from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 
 from apps.cuentas.roles import Rol
-from apps.cuentas.services import crear_membresia, crear_usuario
+from apps.cuentas.services import crear_dueno_de_origen, crear_usuario
 from apps.negocios.services import crear_negocio
 
 
@@ -70,13 +70,11 @@ class Command(BaseCommand):
                 self.stdout.write(f"Sucursal creada: {sucursal.nombre} (slug={sucursal.slug})")
 
             # El Dueño se crea sobre si mismo como operador: tiene el unico ambito.
-            crear_membresia(
-                usuario=usuario,
-                rol=Rol.DUENO,
-                usuario_creador=usuario,
-                negocio_id=negocio.pk,
-                sucursal_id=None,
-            )
+            # No va por `crear_membresia` porque esa via exige un ambito previo y
+            # aqui todavia no existe ninguno: es el arranque del sistema. La via de
+            # origen exige usuario sin membresias y negocio sin membresias, asi que
+            # no amplifica los permisos de nadie.
+            crear_dueno_de_origen(usuario=usuario, negocio=negocio)
             self.stdout.write(f"Membresia {Rol.ETIQUETAS[Rol.DUENO]} creada.")
 
         self.stdout.write(self.style.SUCCESS("Listo. Puede iniciar sesion con ese email."))

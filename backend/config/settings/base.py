@@ -71,10 +71,17 @@ MIDDLEWARE = [
 
 ROOT_URLCONF = "config.urls"
 
+# Frontend compilado que Django sirve en produccion (decision aprobada).
+# Se resuelve aqui, antes de TEMPLATES, porque el catch-all de la SPA de
+# `config.urls` renderiza `index.html` con `TemplateView` y ese archivo vive en
+# el build de Vite. Sin sumarlo a `DIRS` ninguna ruta profunda encontraba la
+# plantilla y devolvia 500 con TemplateDoesNotExist.
+FRONTEND_DIST_DIR = (BASE_DIR / os.environ.get("FRONTEND_DIST_DIR", "../frontend/dist")).resolve()
+
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
-        "DIRS": [BASE_DIR / "templates"],
+        "DIRS": [BASE_DIR / "templates", FRONTEND_DIST_DIR],
         "APP_DIRS": True,
         "OPTIONS": {
             "context_processors": [
@@ -133,9 +140,6 @@ STORAGES = {
     "staticfiles": {"BACKEND": "whitenoise.storage.CompressedStaticFilesStorage"},
 }
 WHITENOISE_AUTOREFRESH = DEBUG
-
-# Frontend compilado que Django sirve en produccion (decision aprobada)
-FRONTEND_DIST_DIR = (BASE_DIR / os.environ.get("FRONTEND_DIST_DIR", "../frontend/dist")).resolve()
 
 # --- Django REST Framework ---
 REST_FRAMEWORK = {

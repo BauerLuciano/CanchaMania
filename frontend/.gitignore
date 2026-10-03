@@ -1,0 +1,30 @@
+# Dependencias y artefactos de build
+node_modules/
+dist/
+dist-ssr/
+coverage/
+*.local
+
+# Vite
+.vite/
+vite.config.js.timestamp-*
+vite.config.js.timestamp
+
+# Secrets: nunca se versionan (puede haber VITE_* sensibles)
+.env
+.env.*
+!.env.example
+
+# Editores / sistema
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
